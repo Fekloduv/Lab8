@@ -1,71 +1,110 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-def modified_euler_method(rhs_func, initial_condition, t0, T, h0, N_x, eps):
-    t = t0
-    h = h0
-    v = np.array(initial_condition)
-    kounter = [0]
-    results = []
-    steps = []
-    solutions = []
-    coord = []
 
-    print("{:12.6f} {:12.6f} {:12s} {:12d} {:12.6f} {:12.6f} {:12.6f}".format(
-        t, h, "0", kounter[0], *v))
+def next(h, t, v, kounter):
+    return v + h * fs(t + h/2, v + (h * fs(t, v, kounter))/2, kounter)
 
-    def euler_Modf(t, v, h, kounter):  # Передача kounter в качестве аргумента
-        v_hat = rhs_func(t, v, kounter)
-        v_tilde = rhs_func(t + h, v + h * v_hat, kounter)
-        return v + (h / 2) * (v_hat + v_tilde)
 
-    while t < T and kounter[0] < N_x:
-        v_First = euler_Modf(t, v, h, kounter)
-        v_Second = euler_Modf(t, v, h/2, kounter)
-        v_Second = euler_Modf(t + h/2, v_Second, h/2, kounter)
+def dlt(v, v1):
+    return np.linalg.norm(np.array(v) - np.array(v1), ord=2) / (pow(2, 3) - 1)
 
-        R = np.linalg.norm(v_First - v_Second) / (pow(2, 2) - 1)
 
-        if R > eps:
+def method(t, T, h, v, kounter, eps):
+    x = []
+    y = []
+    y1 = []
+    y2 = []
+    y3 = []
+    kounter[0] = 0
+    v2 = v
+    while t < T + h / 2:
+        v_0 = v
+        y1.append(v_0[0])
+        y2.append(v_0[1])
+        y3.append(v_0[2])
+        print("{:13.6f}".format(t), "{:12.6f}".format(h), "{:15.5e}".format(dlt(v, v2)), "{:12d}".format(kounter[0]),
+              end=' ')
+        for vi in v_0:
+            print("{:12.6f}".format(vi), end=' ')
+        print()
+        v = next(h, t, v_0, kounter)
+        v1 = next(h / 2, t, v_0, kounter)
+        v2 = next(h / 2, t + h / 2, v1, kounter)
+        while dlt(v, v2) > eps:
             h /= 2
-        elif R < (eps / 64):
-            h *= 2
-        else:
-            v = v_First
-            t += h
-            steps.append(h)
-            solutions.append(v.copy())
-            coord.append(t)
+            v = v1
+            v1 = next(h / 2, t, v_0, kounter)
+            v2 = next(h / 2, t + h / 2, v1, kounter)
+        t += h
+        x.append(t)
+        y.append(h)
+    print()
+    x.pop()
+    y.pop()
+    y1.pop()
+    y2.pop()
+    y3.pop()
+    return x, y, min(y), len(x), y1, y2, y3
 
-            print("{:12.6f} {:12.6f} {:12.5e} {:12d} {:12.6f} {:12.6f} {:12.6f}".format(
-                t, h, R, kounter[0], *v))
 
-        if t + h > T:
-            h = T - t
+def graphs(t, T, h, v, kounter):
+    epses = [0.001, 0.0001, 0.00001, 0.000001, 0.0000001, 0.00000001]
+    k = 0
+    minhes = []
+    numstepses = []
+    fig, ax = plt.subplots(2, 3)
+    fig.tight_layout()
+    fig1, ax1 = plt.subplots(2, 3)
+    fig1.tight_layout()
+    for item in epses:
+        ax[k // 3, k % 3].set_title('eps = ' + str(item))
+        ax[k // 3, k % 3].set_xlabel('Отрезок')
+        ax[k // 3, k % 3].set_ylabel('Шаг')
+        ax1[k // 3, k % 3].set_title('eps = ' + str(item))
+        ax1[k // 3, k % 3].set_xlabel('Отрезок')
+        ax1[k // 3, k % 3].set_ylabel('Решение')
+        print('eps = ', item)
+        x, y, minh, numsteps, y1, y2, y3 = method(t, T, h, v, kounter, item)
+        minhes.append(minh)
+        numstepses.append(numsteps)
+        ax[k // 3, k % 3].scatter(x, y)
+        ax1[k // 3, k % 3].plot(x, y1)
+        ax1[k // 3, k % 3].plot(x, y2)
+        ax1[k // 3, k % 3].plot(x, y3)
+        k += 1
+    plt.figure()
+    plt.semilogx(epses, minhes)
+    plt.xlabel('Точность')
+    plt.ylabel('Минимальный шаг')
+    plt.title('Зависимость min шага от точности')
+    plt.figure()
+    plt.semilogx(epses, numstepses)
+    plt.xlabel('Точность')
+    plt.ylabel('Число шагов')
+    plt.title('Зависимость числа шагов от точности')
+    plt.show()
 
-        results.append((t, h, R, kounter[0], *v))
 
-    return results, steps, solutions, coord
-
-# Определение функции fs
-def fs(t, v, kounter):
-    A = np.array([[-0.4, 0.02, 0], [0, 0.8, -0.1], [0.003, 0, 1]])
-    kounter[0] += 1
-    return np.dot(A, v)
-
-t0 = 1.5
-T = 2.5
-h0 = 0.1
-N_x = 10000
-eps = 0.0001
-eps_count = [0.001, 0.0001, 0.00001, 0.000001, 0.0000001]
-initial_condition = [1, 1, 2]
-
-results, steps, solutions, coord = modified_euler_method(fs, initial_condition, t0, T, h0, N_x, eps)
-
-result_list = []
-for eps in eps_count:
-    print("Eps = ", eps)
-    results = modified_euler_method(fs, initial_condition, t0, T, h0, N_x, eps)
-    result_list.append(results)
-    print(" ")
+if __name__ == '__main__':
+    func = []
+    t = float(input())
+    T = float(input())
+    h = float(input())
+    N_x = int(input())
+    eps = float(input())
+    n = int(input())
+    for i in range(n + 3):
+        func.append(input())
+    b = ''
+    for s in func:
+        b = b + s + '\n'
+    v_0 = input().split()
+    for i in range(n):
+        v_0[i] = float(v_0[i])
+    v = v_0
+    v1 = v_0
+    v2 = v_0
+    kounter = [0]
+    exec(b)
+    graphs(t, T, h, v, kounter)
